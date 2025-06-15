@@ -24,8 +24,11 @@ Future<void> main() async {
   getIt.registerSingleton<SmsCubit>(smsCubit);
 
   // SMS ve telefon izinleri
-  if (await Telephony.instance.requestPhoneAndSmsPermissions == false) {
-    await Telephony.instance.requestPhoneAndSmsPermissions;
+  bool smsPermissionGranted = await Telephony.instance.requestPhoneAndSmsPermissions ?? false;
+  if (!smsPermissionGranted) {
+    // Kullanıcıya uyarı göster ve SMS fonksiyonlarını kısıtla
+    runApp(const PermissionDeniedApp());
+    return;
   }
   
   // Android 13+ için bildirim izni
@@ -35,27 +38,56 @@ Future<void> main() async {
     if (!notificationStatus.isGranted) {
       // Bildirim izni yoksa iste
       await Permission.notification.request();
-      print("Bildirim izni durumu: ${await Permission.notification.status}");
+      print("Bildirim izni durumu: \\${await Permission.notification.status}");
     }
   }
 
   // Method channel işlemleri
   var channel = const MethodChannel('com.dovahkin.sms_guard');
-  await channel.invokeMethod('bert').then((value) => print("value: $value"));
+  try {
+    await channel.invokeMethod('bert').then((value) => print("value: $value"));
+  } catch (e) {
+    print("MethodChannel hatası: $e");
+    // Hata mesajını kullanıcıya göstermek için loglama veya uygun bir yöntem eklenebilir
+  }
   
   // Event channel ile SMS alımı - Doğrudan native'den bildirim almak için
   const EventChannel eventChannel = EventChannel('com.dovahkin.sms_guard/sms');
-  eventChannel.receiveBroadcastStream().listen((dynamic message) {
-    print("EventChannel'dan SMS alındı: $message");
-    
-    // SMS'i SmsCubit'e iletiyoruz
-    getIt<SmsCubit>().onNewMessage(message);
-    
-  }, onError: (dynamic error) {
-    print("EventChannel hatası: $error");
-  });
+  try {
+    eventChannel.receiveBroadcastStream().listen((dynamic message) {
+      print("EventChannel'dan SMS alındı: $message");
+      // SMS'i SmsCubit'e iletiyoruz
+      getIt<SmsCubit>().onNewMessage(message);
+    }, onError: (dynamic error) {
+      print("EventChannel hatası: $error");
+      // Hata mesajını kullanıcıya göstermek için loglama veya uygun bir yöntem eklenebilir
+    });
+  } catch (e) {
+    print("EventChannel başlatılamadı: $e");
+    // Hata mesajını kullanıcıya göstermek için loglama veya uygun bir yöntem eklenebilir
+  }
 
   runApp(const MyApp());
+}
+
+// SMS izni yoksa gösterilecek basit uygulama
+class PermissionDeniedApp extends StatelessWidget {
+  const PermissionDeniedApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      home: Scaffold(
+        body: Center(
+          child: Text(
+            'SMS izinleri verilmedi. Uygulamanın SMS fonksiyonları devre dışı bırakıldı.',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 18, color: Colors.red),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class MyApp extends StatefulWidget {

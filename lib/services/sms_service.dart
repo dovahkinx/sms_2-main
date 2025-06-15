@@ -41,8 +41,9 @@ class SmsService {
         return result.toString();
       } on PlatformException catch (e) {
         // Native kod hata verirse alternatif yöntemi dene
-        log('Native SMS gönderme hatası: ${e.message}, alternatif yöntem deneniyor...');
-        
+        log('Native SMS gönderme hatası: \\${e.message} | details: \\${e.details}');
+        // Kullanıcıya daha anlamlı mesaj
+        final userMessage = 'SMS gönderilemedi. Lütfen izinleri ve SIM kartınızı kontrol edin.';
         // Mesajı SMS URI şemasıyla gönder
         final success = await _sendSmsViaUri(formattedNumber, message);
         if (success) {
@@ -58,12 +59,13 @@ class SmsService {
           }
           return "Mesaj başarıyla gönderildi.";
         } else {
-          return 'SMS gönderme hatası: SMS uygulaması açılamadı';
+          return userMessage;
         }
       }
     } catch (e) {
       log('Beklenmeyen hata: $e');
-      return 'Beklenmeyen hata: $e';
+      // Kullanıcıya daha anlamlı mesaj
+      return 'SMS gönderilemedi. Lütfen bağlantınızı ve izinleri kontrol edin.';
     }
   }
   

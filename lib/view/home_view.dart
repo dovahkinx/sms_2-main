@@ -337,7 +337,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   // Mesaj seçenekleri menüsünü göster
   void _showMessageOptions(BuildContext context, var thread) {
-    
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -354,7 +353,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             Container(
               width: 40,
               height: 4,
-              margin: const EdgeInsets.only(bottom: 20),
+              margin: const EdgeInsets.only(bottom: 12),
               decoration: BoxDecoration(
                 color: Colors.grey[300],
                 borderRadius: BorderRadius.circular(2),
@@ -445,7 +444,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   // Konuşmayı silme
+  // Silme işlemi için tekrar dene butonunu geçici olarak devre dışı bırakmak için flag
+  bool _canRetryDelete = true;
+
   Future<void> _deleteConversation(var thread) async {
+    if (!_canRetryDelete) return; // Süre limiti
+    _canRetryDelete = false;
+    Future.delayed(const Duration(seconds: 2), () => _canRetryDelete = true); // 2 saniye beklet
     final shouldDelete = await showDialog<bool>(
       context: context,
       barrierDismissible: true,
@@ -508,7 +513,17 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               action: SnackBarAction(
                 label: 'TEKRAR DENE',
                 textColor: Colors.white,
-                onPressed: () => _deleteConversation(thread),
+                onPressed: () {
+                  if (_canRetryDelete) {
+                    _deleteConversation(thread);
+                  } else {
+                    _showCustomSnackBar(
+                      context: context,
+                      message: 'Lütfen birkaç saniye bekleyin...',
+                      backgroundColor: Colors.orange,
+                    );
+                  }
+                },
               ),
             );
           } else {
@@ -519,7 +534,17 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               action: SnackBarAction(
                 label: 'TEKRAR DENE',
                 textColor: Colors.white,
-                onPressed: () => _deleteConversation(thread),
+                onPressed: () {
+                  if (_canRetryDelete) {
+                    _deleteConversation(thread);
+                  } else {
+                    _showCustomSnackBar(
+                      context: context,
+                      message: 'Lütfen birkaç saniye bekleyin...',
+                      backgroundColor: Colors.orange,
+                    );
+                  }
+                },
               ),
             );
           }
@@ -666,7 +691,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               title: const Text("Ayarlar"),
               onTap: () {
                 Navigator.pop(context);
-                // Ayarlar ekranına git
+                // TODO: Ayarlar ekranı ileride eklenecek
                 _showCustomSnackBar(
                   context: context,
                   message: 'Ayarlar ekranı yakında eklenecek.',
@@ -679,7 +704,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               title: const Text("Arşivlenmiş Mesajlar"),
               onTap: () {
                 Navigator.pop(context);
-                // Arşiv ekranına git
+                // TODO: Arşiv ekranı ileride eklenecek
                 _showCustomSnackBar(
                   context: context,
                   message: 'Arşiv ekranı yakında eklenecek.',
