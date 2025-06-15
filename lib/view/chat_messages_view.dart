@@ -50,9 +50,9 @@ class _MessageScreenState extends State<MessageScreen> {
     if (_isRefreshing) return;
     _isRefreshing = true;
     if (context.mounted) {
-      await BlocProvider.of<SmsCubit>(context).forceRefresh();
-      await BlocProvider.of<SmsCubit>(context).filterMessageForAdress(widget.address);
-      
+      // Sadece ilgili thread/adres için refresh
+      await BlocProvider.of<SmsCubit>(context).forceRefresh(address: widget.address);
+      // await BlocProvider.of<SmsCubit>(context).filterMessageForAdress(widget.address); // forceRefresh zaten çağırıyor
       // Scroll to bottom after frame is drawn
       if (_scrollController.hasClients) {
         WidgetsBinding.instance.addPostFrameCallback((_) {

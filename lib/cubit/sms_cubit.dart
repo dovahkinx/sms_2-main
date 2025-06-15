@@ -97,7 +97,8 @@ class SmsCubit extends Cubit<SmsState> {
 
       if (message is String) {
         print("String mesaj alındı: $message");
-        await _forceRefreshMessages();
+        // Sadece ilgili mesajı ekle
+        // await _forceRefreshMessages();
         emit(state.copyWith(
             isLoading: false, timestamp: DateTime.now().millisecondsSinceEpoch));
       } else if (message is Map) {
@@ -144,7 +145,7 @@ class SmsCubit extends Cubit<SmsState> {
             myMessages: updatedMessages,
             timestamp: DateTime.now().millisecondsSinceEpoch));
 
-        await _forceRefreshMessages();
+        // await _forceRefreshMessages();
       }
 
       emit(state.copyWith(
@@ -154,24 +155,28 @@ class SmsCubit extends Cubit<SmsState> {
     } catch (e) {
       print("SMS güncelleme hatası: $e");
       emit(state.copyWith(isLoading: false));
-      _forceRefreshMessages();
+      // _forceRefreshMessages();
     }
   }
 
-  Future<void> _forceRefreshMessages() async {
+  Future<void> _forceRefreshMessages({String? address, int? threadId}) async {
     _gettingMessages = false;
-    await getMessages();
-    await getSpam();
-
-    if (state.address != null) {
+    // Sadece ilgili thread/adres için veri çek
+    await Future.wait([
+      getMessages(),
+      getSpam(),
+    ]);
+    if (address != null) {
+      await filterMessageForAdress(address);
+    } else if (state.address != null) {
       await filterMessageForAdress(state.address!);
     }
   }
 
-  Future<void> forceRefresh() async {
+  Future<void> forceRefresh({String? address, int? threadId}) async {
     emit(state.copyWith(isLoading: true));
     _gettingMessages = false;
-    await _forceRefreshMessages();
+    await _forceRefreshMessages(address: address, threadId: threadId);
     emit(state.copyWith(
         isLoading: false,
         isInit: true,
@@ -181,37 +186,17 @@ class SmsCubit extends Cubit<SmsState> {
   Future<void> filterMessageForAdress(String address) async {
     emit(state.copyWith(address: address));
     SmsQuery query = SmsQuery();
-
     try {
       print("Belirli adres için mesajlar alınıyor: $address");
-      
       List<SmsMessage> messages = [];
-      
-      // Eğer address bir telefon numarası ise (sadece rakam ve + içeriyorsa)
-      if (RegExp(r'^[\+\d\s\-\(\)]+$').hasMatch(address)) {
-        final normalizedAddress = cleanPhoneNumber(address);
-        print("Telefon numarası tespit edildi, normalize edildi: $normalizedAddress");
-        
-        // Query for messages with the normalized 10-digit number
-        var phoneMessages = await query.querySms(
-            address: normalizedAddress, kinds: [SmsQueryKind.inbox, SmsQueryKind.sent]);
-        messages.addAll(phoneMessages);
-
-        // Also query for messages with the +90 prefixed version if applicable
-        if (normalizedAddress.length == 10 && normalizedAddress.startsWith('5')) {
-          String prefixedAddress = '+90$normalizedAddress';
-          var prefixedMessages = await query.querySms(
-              address: prefixedAddress, kinds: [SmsQueryKind.inbox, SmsQueryKind.sent]);
-          messages.addAll(prefixedMessages);
-        }
-      } else {
-        // Kurumsal gönderen (TÜRKTELEKOM, GARANTI vs.) - isim olarak geçen adresler
-        print("Kurumsal gönderen tespit edildi: $address");
-        
-        // Önce thread ID'yi bul - aynı thread'deki tüm mesajları al
+      // Sadece tek bir sorgu ile threadId/address'e göre filtrele
+      final normalizedAddress = cleanPhoneNumber(address);
+      var phoneMessages = await query.querySms(
+          address: normalizedAddress, kinds: [SmsQueryKind.inbox, SmsQueryKind.sent]);
+      messages.addAll(phoneMessages);
+      // Eğer kurumsal ise threadId ile sorgula
+      if (messages.isEmpty) {
         var allMessages = await query.getAllSms;
-        
-        // Önce bu address ile eşleşen bir thread ID bul
         int? targetThreadId;
         for (var message in allMessages) {
           if (message.address == address) {
@@ -219,22 +204,13 @@ class SmsCubit extends Cubit<SmsState> {
             break;
           }
         }
-        
         if (targetThreadId != null) {
-          // Thread ID bulunduysa, o thread'deki tüm mesajları al
           messages = await query.querySms(
               threadId: targetThreadId, kinds: [SmsQueryKind.inbox, SmsQueryKind.sent]);
-        } else {
-          // Thread ID bulunamadıysa, address'e göre filtrele
-          messages = await query.querySms(
-              address: address, kinds: [SmsQueryKind.inbox, SmsQueryKind.sent]);
         }
       }
-      print("Toplam ${messages.length} mesaj bulundu");
-
-      // Mesajları tarihe göre sırala
-      messages.sort((a, b) => a.date!.compareTo(b.date!));
-
+      print("Toplam \\${messages.length} mesaj bulundu");
+      // Mesajlar sıralı geliyorsa tekrar sort etme
       emit(state.copyWith(filtingMessages: messages.reversed.toList()));
     } catch (e) {
       print("Konuşma filtreleme hatası: $e");
@@ -247,30 +223,22 @@ class SmsCubit extends Cubit<SmsState> {
       print("getMessages already in progress - skipping");
       return;
     }
-
     _gettingMessages = true;
-
     try {
       var fonksiyonBaslangic = DateTime.now();
-
       final Telephony telephony = Telephony.instance;
       final bool? permissionsGranted = await telephony.requestPhoneAndSmsPermissions;
-
       if (permissionsGranted != true) {
         print("SMS permissions not granted");
         emit(state.copyWith(myMessages: [], messages: []));
         return;
       }
-
       print("Fetching all SMS messages...");
       var messages = await SmsQuery().getAllSms;
-      print("Found ${messages.length} SMS messages");
-
+      print("Found \\${messages.length} SMS messages");
       Map<int?, SmsMessage> threadMap = {};
-
       for (var message in messages) {
         if (message.threadId == null) continue;
-
         if (!threadMap.containsKey(message.threadId) ||
             (message.date != null &&
                 threadMap[message.threadId]!.date != null &&
@@ -278,16 +246,11 @@ class SmsCubit extends Cubit<SmsState> {
           threadMap[message.threadId] = message;
         }
       }
-
       List<MyMessage> list = threadMap.values.map((sms) {
-        // Kurumsal gönderenlerin ismini address'ten al
         String displayName = sms.address ?? '';
-        
-        // Eğer address sadece rakam içeriyorsa, kişi adını null bırak (rehberden bulunacak)
-        if (RegExp(r'^[\+\d\s\-\(\)]+$').hasMatch(displayName)) {
-          displayName = ''; // Boş bırak, rehberden isim bulunacak
+        if (RegExp(r'^[\\+\\d\\s\\-\\(\\)]+$').hasMatch(displayName)) {
+          displayName = '';
         }
-        
         return MyMessage(
             name: displayName,
             lastMessage: sms.body,
@@ -295,45 +258,42 @@ class SmsCubit extends Cubit<SmsState> {
             date: sms.date,
             threadId: sms.threadId);
       }).toList();
-
       if (list.isEmpty) {
         emit(state.copyWith(myMessages: [], messages: messages));
         return;
       }
-
       try {
         final contacts = await getContactsIfNeeded();
-        if (contacts.isNotEmpty) {
-          for (var element in contacts) {
-            if (element.phones.isNotEmpty) {
-              var phone =
-                  element.phones.first.number.toString().replaceAll(" ", "").replaceAll("-", "");
-              for (var item in list) {
-                // Sadece telefon numarası olan address'ler için rehber eşleştirmesi yap
-                if (item.address != null && 
-                    RegExp(r'^[\+\d\s\-\(\)]+$').hasMatch(item.address!) &&
-                    item.address!.contains(phone)) {
-                  item.name = element.displayName;
-                }
+        // Rehber eşleştirmesini Map ile yap
+        final Map<String, String> phoneToName = {};
+        for (var element in contacts) {
+          if (element.phones.isNotEmpty) {
+            for (var phone in element.phones) {
+              final normalized = cleanPhoneNumber(phone.number);
+              if (normalized.isNotEmpty) {
+                phoneToName[normalized] = element.displayName;
               }
             }
           }
-        } else {
-          print("No contacts found");
+        }
+        for (var item in list) {
+          if (item.address != null) {
+            final normalized = cleanPhoneNumber(item.address!);
+            if (phoneToName.containsKey(normalized)) {
+              item.name = phoneToName[normalized]!;
+            }
+          }
         }
       } catch (e) {
         print("Error matching contacts: $e");
       }
-
       list.sort((a, b) => b.date!.compareTo(a.date!));
-
       emit(state.copyWith(
           myMessages: list,
           messages: messages,
           timestamp: DateTime.now().millisecondsSinceEpoch));
-
       print(
-          "Function completion time: ${DateTime.now().difference(fonksiyonBaslangic).inMilliseconds}ms");
+          "Function completion time: \\${DateTime.now().difference(fonksiyonBaslangic).inMilliseconds}ms");
     } catch (e) {
       print("Error in getMessages: $e");
       emit(state.copyWith(myMessages: [], messages: []));

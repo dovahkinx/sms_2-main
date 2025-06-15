@@ -109,16 +109,21 @@ class SmsService {
       if (formatNumber) {
         formattedNumber = _formatPhoneNumber(phoneNumber);
       }
-      
-      final result = await _channel.invokeMethod('check', {
-        'address': formattedNumber,
-        'body': message,
+      // Zincirleme await yerine arka planda başlat
+      Future.microtask(() async {
+        try {
+          await _channel.invokeMethod('check', {
+            'address': formattedNumber,
+            'body': message,
+          });
+        } catch (e) {
+          log('SMS kaydetme hatası (arka plan): $e');
+        }
       });
-      
-      return result.toString();
+      return "SMS kaydetme işlemi başlatıldı.";
     } catch (e) {
       log('SMS kaydetme hatası: $e');
-      return 'SMS kaydetme hatası: $e';
+      return 'SMS kaydedilemedi: $e';
     }
   }
   

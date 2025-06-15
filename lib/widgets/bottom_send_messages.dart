@@ -239,10 +239,9 @@ class _SendingMessageBoxState extends State<SendingMessageBox> {
     // SMS'i gönderildikten sonra veritabanına kaydet
     widget.textController.clear();
     if (context.mounted) {
-      // Önce mevcut filtrelemeyi yap
-      BlocProvider.of<SmsCubit>(context).filterMessageForAdress(widget.address);
-      // Tam bir yenileme gerçekleştir - ana ekran ve tüm mesaj listelerini günceller
-      await BlocProvider.of<SmsCubit>(context).forceRefresh();
+      // Sadece ilgili thread/adres için filtreleme yap
+      await BlocProvider.of<SmsCubit>(context).filterMessageForAdress(widget.address);
+      // await BlocProvider.of<SmsCubit>(context).forceRefresh(); // Tam yenileme arka plana alınabilir
       BlocProvider.of<SmsCubit>(context).state.text = "";
     }
   }
