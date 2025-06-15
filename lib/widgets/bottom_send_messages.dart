@@ -140,7 +140,7 @@ class _SendingMessageBoxState extends State<SendingMessageBox> {
             child: IconButton(
               onPressed: widget.textController.text.isEmpty 
                 ? () {
-                    // Metin boşsa mikrofon işlevi
+                    // TODO: Ses kaydı özelliği hazır olunca aktif edilecek. Şu an devre dışı.
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
                         content: Text('Ses kaydı özelliği yakında!'),

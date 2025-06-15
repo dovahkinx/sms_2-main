@@ -21,6 +21,15 @@ class SmsService {
     required String message,
     bool formatNumber = true
   }) async {
+    // SMS göndermeden önce internet ve SIM kart kontrolü
+    if (!(await _hasSimCard())) {
+      log('SIM kart bulunamadı.');
+      return 'SMS gönderilemedi: SIM kart bulunamadı.';
+    }
+    if (!(await _hasInternetConnection())) {
+      log('İnternet bağlantısı yok.');
+      return 'SMS gönderilemedi: İnternet bağlantısı yok.';
+    }
     try {
       // Telefon numarasını formatlama (opsiyonel)
       String formattedNumber = phoneNumber;
@@ -190,5 +199,19 @@ class SmsService {
     }
     
     return number;
+  }
+
+  // SIM kart kontrolü (örnek, platforma göre değişebilir)
+  Future<bool> _hasSimCard() async {
+    // TODO: Gerçek SIM kart kontrolü native ile yapılmalı
+    // Şimdilik true dönüyor
+    return true;
+  }
+
+  // İnternet bağlantısı kontrolü
+  Future<bool> _hasInternetConnection() async {
+    // TODO: Gerçek bağlantı kontrolü eklenmeli
+    // Şimdilik true dönüyor
+    return true;
   }
 }

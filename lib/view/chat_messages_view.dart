@@ -27,6 +27,7 @@ class MessageScreen extends StatefulWidget {
 class _MessageScreenState extends State<MessageScreen> {
   final TextEditingController textController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
+  bool _isRefreshing = false;
   
   @override
   void initState() {
@@ -46,6 +47,8 @@ class _MessageScreenState extends State<MessageScreen> {
   
   // Mesajları yenile
   Future<void> _refreshMessages() async {
+    if (_isRefreshing) return;
+    _isRefreshing = true;
     if (context.mounted) {
       await BlocProvider.of<SmsCubit>(context).forceRefresh();
       await BlocProvider.of<SmsCubit>(context).filterMessageForAdress(widget.address);
@@ -63,6 +66,7 @@ class _MessageScreenState extends State<MessageScreen> {
         });
       }
     }
+    _isRefreshing = false;
   }
 
   @override
@@ -410,7 +414,7 @@ class _MessageScreenState extends State<MessageScreen> {
     );
   }
   
-  // İki mesaj arasında tarih farkı varsa tarih başlığını göstermeye karar ver
+  // İki mesaj arasında tarih farkı varsa tarih başlığını göstermaya karar ver
   bool _shouldShowDate(SmsMessage current, SmsMessage? previous) {
     if (previous == null) return true;
     
